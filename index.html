@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Todo App - Calendar & Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>Todo App</h1>
+      <div class="header-actions">
+        <div id="auth-ui" class="auth-ui">
+          <span id="auth-user" class="auth-user"></span>
+          <button type="button" id="btn-login" class="btn btn-secondary" style="display:none">Đăng nhập Google</button>
+          <button type="button" id="btn-logout" class="btn btn-secondary" style="display:none">Đăng xuất</button>
+        </div>
+        <span id="header-points" class="header-points" title="Điểm tích lũy">⭐ <span id="header-points-value">0</span> pts</span>
+        <button type="button" id="btn-kpi" class="btn btn-icon" title="KPI">🎯</button>
+        <button type="button" id="btn-add-task" class="btn btn-primary">+ Thêm task</button>
+        <button type="button" id="btn-settings" class="btn btn-secondary">Cài đặt</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button type="button" class="tab active" data-tab="calendar">Calendar</button>
+      <button type="button" class="tab" data-tab="today">⚡ Lịch hôm nay</button>
+      <button type="button" class="tab" data-tab="dashboard">Dashboard</button>
+      <button type="button" class="tab" data-tab="tasks">Danh sách task</button>
+    </nav>
+
+    <!-- Tab Calendar -->
+    <section id="panel-calendar" class="panel active">
+      <div class="calendar-toolbar">
+        <button type="button" id="cal-prev">←</button>
+        <span id="cal-title"></span>
+        <button type="button" id="cal-next">→</button>
+        <button type="button" id="cal-today" class="btn btn-secondary">Hôm nay</button>
+        <button type="button" id="btn-fixed-schedule" class="btn btn-secondary">Lịch cố định</button>
+        <div id="day-slot-wrap" class="day-slot-wrap" style="display:none">
+          <label for="day-slot-interval" class="day-slot-label">Khoảng:</label>
+          <select id="day-slot-interval" class="day-slot-interval" title="Độ dài mỗi ô giờ trong xem ngày">
+            <option value="30">30 phút</option>
+            <option value="60" selected>1 giờ</option>
+            <option value="240">4 giờ</option>
+          </select>
+        </div>
+        <div class="cal-mode">
+          <button type="button" class="mode-btn active" data-mode="day">Ngày</button>
+          <button type="button" class="mode-btn" data-mode="week">Tuần</button>
+          <button type="button" class="mode-btn" data-mode="month">Tháng</button>
+          <button type="button" class="mode-btn" data-mode="year">Năm</button>
+        </div>
+      </div>
+      <div id="calendar-day-info" class="calendar-day-info" aria-live="polite"></div>
+      <div id="calendar-container" class="calendar-container"></div>
+      <div id="day-schedule-section" class="day-schedule-section">
+        <h3>Lịch trong ngày (tự động sắp xếp)</h3>
+        <div id="day-timeline" class="day-timeline"></div>
+        <h4>Hàng chờ (không đủ thời gian)</h4>
+        <div id="queue-list" class="queue-list"></div>
+      </div>
+    </section>
+
+    <!-- Tab Lịch hôm nay -->
+    <section id="panel-today" class="panel">
+      <div class="today-panel-header">
+        <div class="today-panel-head-row">
+          <h2 class="today-panel-title">Lịch hôm nay</h2>
+          <span id="today-current-time" class="today-current-time" aria-live="polite"></span>
+        </div>
+        <p class="today-panel-sub">Tự động sắp xếp theo ưu tiên & thời gian rảnh</p>
+      </div>
+      <div id="today-timeline" class="day-timeline today-timeline"></div>
+      <h4 class="today-queue-title">Hàng chờ (không đủ thời gian)</h4>
+      <div id="today-queue" class="queue-list"></div>
+    </section>
+
+    <!-- Tab Dashboard (chỉ thống kê + biểu đồ) -->
+    <section id="panel-dashboard" class="panel">
+      <div id="dashboard-stats-cards" class="dashboard-stats-cards"></div>
+      <div class="stats-section">
+        <h3>Thống kê</h3>
+        <div class="stats-period">
+          <button type="button" class="period-btn active" data-period="day">Ngày</button>
+          <button type="button" class="period-btn" data-period="week">Tuần</button>
+          <button type="button" class="period-btn" data-period="month">Tháng</button>
+          <button type="button" class="period-btn" data-period="year">Năm</button>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="stats-chart"></canvas>
+        </div>
+        <div class="stats-task-list-wrap">
+          <h4>Chi tiết task trong kỳ</h4>
+          <div id="stats-task-list" class="stats-task-list"></div>
+        </div>
+      </div>
+      <div class="kpi-rewards-section">
+        <h3>KPI & Rewards</h3>
+        <div id="kpi-config" class="kpi-config"></div>
+        <div id="rewards-display" class="rewards-display"></div>
+      </div>
+    </section>
+
+    <!-- Tab Danh sách task -->
+    <section id="panel-tasks" class="panel">
+      <div class="dashboard-toolbar">
+        <input type="text" id="dashboard-search" class="dashboard-search" placeholder="Tìm task theo tên..." />
+        <div id="dashboard-filter-pills" class="dashboard-filter-pills"></div>
+        <div class="dashboard-filter-extra">
+          <select id="filter-priority" class="filter-select" title="Lọc theo độ quan trọng">
+            <option value="">Ưu tiên</option>
+            <option value="important_urgent">Quan trọng + Gấp</option>
+            <option value="important_not_urgent">Quan trọng</option>
+            <option value="not_important_urgent">Gấp</option>
+            <option value="not_important_not_urgent">Thấp</option>
+          </select>
+          <input type="date" id="filter-date" class="filter-date" title="Lọc theo deadline ngày" />
+          <input type="month" id="filter-month" class="filter-month" title="Lọc theo deadline tháng" />
+        </div>
+      </div>
+      <div class="dashboard-sort"><span>Sắp xếp theo thời gian & độ ưu tiên</span></div>
+      <div id="dashboard-tasks" class="dashboard-tasks"></div>
+    </section>
+  </div>
+
+  <!-- Modal: Task form -->
+  <div id="modal-task" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-task-title">Thêm task</h2>
+        <button type="button" class="modal-close">&times;</button>
+      </div>
+      <form id="form-task">
+        <input type="hidden" id="task-id" />
+        <input type="hidden" id="task-parent-id" />
+        <div class="form-group">
+          <label>Tên task *</label>
+          <input type="text" id="task-name" required placeholder="Tên task" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Thời gian ước lượng (phút) *</label>
+            <input type="number" id="task-estimated" min="1" required placeholder="30" />
+          </div>
+          <div class="form-group">
+            <label>Deadline *</label>
+            <input type="datetime-local" id="task-deadline" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Thực hiện trong 1 ngày hay nhiều ngày?</label>
+          <select id="task-single-day">
+            <option value="true">Một ngày</option>
+            <option value="false">Nhiều ngày</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Quan trọng?</label>
+            <select id="task-important">
+              <option value="false">Không quan trọng</option>
+              <option value="true">Quan trọng</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Gấp?</label>
+            <select id="task-urgent">
+              <option value="false">○ Không gấp</option>
+              <option value="true">⚡ Gấp</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Ghi chú</label>
+          <textarea id="task-notes" rows="3" placeholder="Ghi chú cho task..."></textarea>
+        </div>
+        <div id="task-subtasks-area" class="subtasks-area" style="display:none">
+          <label>Task con (subtasks)</label>
+          <div id="task-subtasks-list"></div>
+          <button type="button" id="btn-add-subtask" class="btn btn-small">+ Thêm task con</button>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="task-is-parent" /> Đây là task cha (chứa nhiều task con)</label>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary">Lưu</button>
+          <button type="button" class="btn btn-secondary modal-cancel">Hủy</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Fixed schedule (lịch cố định trong ngày) -->
+  <div id="modal-schedule" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Lịch trình cố định trong ngày</h2>
+        <button type="button" class="modal-close">&times;</button>
+      </div>
+      <p class="hint">Các khung giờ này sẽ không dùng để sắp xếp task. Có thể áp dụng: mỗi ngày, một ngày cụ thể, thứ trong tuần (VD: Thứ 2), mỗi N ngày, hoặc ngày trong tháng.</p>
+      <div id="fixed-schedule-list" class="fixed-schedule-list"></div>
+      <button type="button" id="btn-add-schedule" class="btn btn-primary">+ Thêm khung giờ cố định</button>
+      <div class="modal-actions">
+        <button type="button" id="btn-save-schedule" class="btn btn-primary">Lưu</button>
+        <button type="button" class="btn btn-secondary modal-cancel">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Settings (chỉ Lưu trữ, KPI đã tách ra) -->
+  <div id="modal-settings" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Cài đặt</h2>
+        <button type="button" class="modal-close">&times;</button>
+      </div>
+      <div class="settings-section">
+        <h3>Lưu trữ</h3>
+        <p>Dữ liệu lưu trên máy (localStorage). Đăng nhập Google để đồng bộ lên cloud (Firestore).</p>
+        <button type="button" id="btn-export" class="btn btn-secondary">Xuất dữ liệu</button>
+        <button type="button" id="btn-import" class="btn btn-secondary">Nhập dữ liệu</button>
+        <input type="file" id="import-file" accept=".json" style="display:none" />
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary modal-cancel">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: KPI (tách riêng khỏi Cài đặt) -->
+  <div id="modal-kpi" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>KPI & Rewards</h2>
+        <button type="button" class="modal-close">&times;</button>
+      </div>
+      <div class="settings-section">
+        <div class="form-group">
+          <label>Loại KPI</label>
+          <select id="kpi-type">
+            <option value="done_ratio">Tỷ lệ task hoàn thành (done)</option>
+            <option value="completion_ratio">Tỷ lệ hoàn thành theo thời gian</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Mục tiêu (%)</label>
+          <input type="number" id="kpi-target" min="0" max="100" value="80" />
+        </div>
+        <div class="form-group">
+          <label>Reward (để trống = dùng points tự động)</label>
+          <input type="text" id="kpi-reward-custom" placeholder="VD: Đi ăn kem, ..." />
+        </div>
+        <button type="button" id="btn-save-kpi" class="btn btn-primary">Lưu KPI</button>
+      </div>
+      <div id="kpi-config" class="kpi-config"></div>
+      <div id="rewards-display" class="rewards-display"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary modal-cancel">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Chi tiết task (xem/sửa, 3 tab Info / Sub / Note) -->
+  <div id="modal-task-detail" class="modal">
+    <div class="modal-content modal-content-lg">
+      <div class="modal-header modal-header-actions">
+        <div class="modal-title-row">
+          <span id="detail-task-dot" class="detail-task-dot"></span>
+          <h2 id="detail-task-title" class="detail-task-title">Task</h2>
+        </div>
+        <div class="modal-header-buttons">
+          <button type="button" id="detail-btn-done" class="btn btn-primary btn-sm" title="Done">✓ Done</button>
+          <button type="button" id="detail-btn-delete" class="btn btn-delete btn-sm" title="Xóa">🗑</button>
+          <button type="button" class="modal-close">&times;</button>
+        </div>
+      </div>
+      <div class="detail-tabs">
+        <button type="button" class="detail-tab active" data-detail-tab="info">📝 Info</button>
+        <button type="button" class="detail-tab" data-detail-tab="sub">🔀 Sub</button>
+        <button type="button" class="detail-tab" data-detail-tab="note">💬 Note</button>
+      </div>
+      <div id="detail-panel-info" class="detail-panel active">
+        <div class="form-group">
+          <label>Tên task *</label>
+          <input type="text" id="detail-task-name" placeholder="Tên task" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Thời gian ước lượng (phút) *</label>
+            <input type="number" id="detail-task-estimated" min="1" placeholder="30" />
+          </div>
+          <div class="form-group">
+            <label>Deadline *</label>
+            <input type="datetime-local" id="detail-task-deadline" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Thực hiện trong 1 ngày hay nhiều ngày?</label>
+          <select id="detail-task-single-day">
+            <option value="true">Một ngày</option>
+            <option value="false">Nhiều ngày</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Quan trọng?</label>
+            <select id="detail-task-important">
+              <option value="false">Không quan trọng</option>
+              <option value="true">Quan trọng</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Gấp?</label>
+            <select id="detail-task-urgent">
+              <option value="false">○ Không gấp</option>
+              <option value="true">⚡ Gấp</option>
+            </select>
+          </div>
+        </div>
+        <button type="button" id="detail-btn-save-info" class="btn btn-primary">💾 Lưu</button>
+      </div>
+      <div id="detail-panel-sub" class="detail-panel">
+        <div id="detail-subtasks-list" class="detail-subtasks-list"></div>
+        <button type="button" id="detail-btn-add-subtask" class="btn btn-primary">+ Thêm subtask</button>
+      </div>
+      <div id="detail-panel-note" class="detail-panel">
+        <div class="detail-note-add">
+          <textarea id="detail-note-input" rows="2" placeholder="Ghi chú..."></textarea>
+          <button type="button" id="detail-btn-add-note" class="btn btn-primary">＋</button>
+        </div>
+        <div id="detail-notes-list" class="detail-notes-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script src="data.js"></script>
+  <script src="auth.js"></script>
+  <script src="scheduler.js"></script>
+  <script src="calendar.js"></script>
+  <script src="dashboard.js"></script>
+  <script src="stats.js"></script>
+  <script src="kpi.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

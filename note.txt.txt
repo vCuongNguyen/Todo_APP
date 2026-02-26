@@ -1,0 +1,19 @@
+Thiết kế một webapp todo như sau:
+1. Chia tab, calender và Dashboard.
+   1.1. Có thể tạo 1 task bằng cách nhấn vào calendar hoặc nút thêm mới góc phải trên cùng.
+   1.2. Calendar có thể hiển thị theo các mode (trong ngày, trong tuần, trong tháng, trong năm).
+2. Các task có thể cấu hình:
+   2.1 Thời gian cần để thực hiện (ước lượng).
+   2.2 Mức độ ưu tiên.
+   2.3 thông tin cơ bản (tên,....).
+   2.4 Mỗi task sẽ cho phép tạo các ghi chú riêng.
+   2.5 cho phép tạo 1 task to (bao gồm nhiều task nhỏ), tổng thời gian thực hiện task to sẽ bằng tổng thời gian các task con + 10%. sẽ có thông tin hiển thị phần trăm hoàn thành task( theo thời gian + theo số task). THiết kế thông minh cho phép đệ quy (một task con có thể chứa các task con khác.).
+   2.6 Một task có thể cấu hình thời gian thực hiện trong 1 ngày, hoặc trong nhiều ngày. các task đều phải có deadline cụ thể.
+3. Trong 1 ngày có thể cấu hình các lịch trình/ thời gian cố định (không thể dành thực hiện task). VD: ăn, ngủ,....
+4. Dựa trên thời gian rảnh trong ngày, cho phép cấu hình tự động sắp xếp các task dựa trên độ ưu tiên, cập nhật liên tục theo mốc thời gian hiện tại trong ngày.
+   - Nếu thời gian còn lại (không tính thời gian lịch trình cố định) không đủ để thực hiện tất cả các task, tự động bỏ bớt các task ưu tiên thấp ra 1 hàng chờ riêng ( để thực hiện xóa, hay xếp lại lịch thực hiện, đánh dấu đã hoàn thành,..).
+5. Cho phép lưu cookies hoặc lưu vào máy local để mở lại web không bị mất data.
+6. Dashboard sẽ hiển thị các task, sort theo thời gian và độ ưu tiên (quan trọng, gấp, không quan trọng, không gấp)
+   - mỗi task sẽ là 1 thanh bar có màu gradient hiệu ứng, đổi màu theo mức độ báo động (ví dụ gấp + quan trọng sẽ có màu đỏ đậm cảnh báo, thấp nhất là không quan trọng, không gấp.)
+7. sẽ có 1 biểu đồ thống kê theo ngày/tháng/tuần/năm. cho thấy số task done và số task bị trễ deadline hoặc bị hủy (bị vào hàng chờ quá deadline hoặc ko đủ thời gian thực hiện), tỷ lệ.
+8. Cho phép đặt 1 KPI (theo tỷ lệ số task done, hoặc tỷ lệ hoàn thành,...) và đặt một reward (tự cấu hình) hoặc nếu không cấu hình sẽ tự động có rewards point (point tùy vào độ ưu tiên của task).

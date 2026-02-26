@@ -308,6 +308,19 @@ const App = {
       App.renderProjectsPanel();
       Dashboard.render();
     });
+    var deleteBtn = document.getElementById('edit-project-delete');
+    if (deleteBtn) deleteBtn.addEventListener('click', function() {
+      var id = document.getElementById('edit-project-id').value;
+      if (!id) return;
+      var p = Data.getProject(id);
+      var name = (p && p.name) ? p.name : 'project này';
+      if (!confirm('Xóa project "' + name + '"? Các task sẽ được gỡ khỏi project (không xóa task).')) return;
+      Data.deleteProject(id);
+      App.closeModal('modal-edit-project');
+      App.fillProjectOptions();
+      App.renderProjectsPanel();
+      Dashboard.render();
+    });
   },
 
   bindModals() {

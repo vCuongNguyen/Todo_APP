@@ -283,6 +283,23 @@ const Data = {
     return projects[i];
   },
 
+  /** Xóa project và gỡ projectId khỏi mọi task thuộc project đó. */
+  deleteProject(id) {
+    const projects = (Data.getProjects() || []).filter(p => p.id !== id);
+    Data.setProjects(projects);
+    const tasks = Data.getTasks();
+    let changed = false;
+    const next = tasks.map(t => {
+      if (t.projectId === id) {
+        changed = true;
+        return { ...t, projectId: null };
+      }
+      return t;
+    });
+    if (changed) Data.setTasks(next);
+    return projects;
+  },
+
   getTasksByProject(projectId) {
     const tasks = Data.getTasks();
     if (!projectId) return tasks.filter(t => !t.projectId);

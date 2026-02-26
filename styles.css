@@ -938,7 +938,40 @@ body {
 .stats-task-row .stats-task-info { display: flex; flex-direction: column; min-width: 0; }
 .stats-task-row .stats-task-name { font-weight: 500; }
 .stats-task-row .stats-task-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-.stats-task-row .stats-task-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.stats-task-row .stats-task-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+/* Nút hành động trong list thống kê: icon + label, màu phân biệt */
+.stats-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, transform 0.1s;
+  background: var(--surface3);
+  color: var(--text-muted);
+}
+.stats-action-btn:hover { transform: translateY(-1px); }
+.stats-action-icon { font-size: 14px; line-height: 1; opacity: 0.95; }
+.stats-action-label { white-space: nowrap; }
+.stats-action-edit { color: var(--primary); }
+.stats-action-edit:hover { background: rgba(124, 111, 255, 0.2); color: var(--primary); }
+.stats-action-delete { color: var(--text-dim); }
+.stats-action-delete:hover { background: rgba(255, 79, 112, 0.2); color: var(--danger); }
+.stats-action-pending { color: var(--accent-blue); }
+.stats-action-pending:hover { background: rgba(56, 189, 248, 0.2); color: var(--accent-blue); }
+.stats-action-cancel { color: var(--warning); }
+.stats-action-cancel:hover { background: rgba(251, 146, 60, 0.2); color: var(--warning); }
+
+@media (max-width: 640px) {
+  .stats-action-btn .stats-action-label { display: none; }
+  .stats-action-btn { padding: 8px 10px; }
+}
 
 /* KPI & Rewards */
 .kpi-rewards-section { margin-bottom: 24px; }

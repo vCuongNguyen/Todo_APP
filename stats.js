@@ -135,13 +135,15 @@ const Stats = {
         const actions = row.querySelector('.stats-task-actions');
         const btnSua = document.createElement('button');
         btnSua.type = 'button';
-        btnSua.className = 'btn btn-small';
-        btnSua.textContent = 'Sửa';
+        btnSua.className = 'stats-action-btn stats-action-edit';
+        btnSua.innerHTML = '<span class="stats-action-icon">✎</span><span class="stats-action-label">Sửa</span>';
+        btnSua.title = 'Sửa';
         btnSua.addEventListener('click', () => App.openTaskModal({ editId: t.id }));
         const btnXoa = document.createElement('button');
         btnXoa.type = 'button';
-        btnXoa.className = 'btn btn-small';
-        btnXoa.textContent = 'Xóa';
+        btnXoa.className = 'stats-action-btn stats-action-delete';
+        btnXoa.innerHTML = '<span class="stats-action-icon">🗑</span><span class="stats-action-label">Xóa</span>';
+        btnXoa.title = 'Xóa';
         btnXoa.addEventListener('click', () => {
           if (confirm('Xóa task “‘ + t.name +’”?')) {
             Data.deleteTask(t.id);
@@ -155,8 +157,9 @@ const Stats = {
         if (type === 'done') {
           const btnPending = document.createElement('button');
           btnPending.type = 'button';
-          btnPending.className = 'btn btn-small';
-          btnPending.textContent = 'Đặt lại pending';
+          btnPending.className = 'stats-action-btn stats-action-pending';
+          btnPending.innerHTML = '<span class="stats-action-icon">↩</span><span class="stats-action-label">Đặt lại pending</span>';
+          btnPending.title = 'Đặt lại pending';
           btnPending.addEventListener('click', () => {
             Data.updateTask(t.id, { status: 'pending', completedAt: null, completedMinutes: 0 });
             Stats.render();
@@ -168,8 +171,9 @@ const Stats = {
         if (type === 'late') {
           const btnPending = document.createElement('button');
           btnPending.type = 'button';
-          btnPending.className = 'btn btn-small';
-          btnPending.textContent = 'Đặt pending';
+          btnPending.className = 'stats-action-btn stats-action-pending';
+          btnPending.innerHTML = '<span class="stats-action-icon">⏳</span><span class="stats-action-label">Đặt pending</span>';
+          btnPending.title = 'Đặt pending';
           btnPending.addEventListener('click', () => {
             Data.updateTask(t.id, { status: 'pending' });
             Stats.render();
@@ -179,8 +183,9 @@ const Stats = {
           actions.appendChild(btnPending);
           const btnHuy = document.createElement('button');
           btnHuy.type = 'button';
-          btnHuy.className = 'btn btn-small';
-          btnHuy.textContent = 'Đặt hủy';
+          btnHuy.className = 'stats-action-btn stats-action-cancel';
+          btnHuy.innerHTML = '<span class="stats-action-icon">⊘</span><span class="stats-action-label">Đặt hủy</span>';
+          btnHuy.title = 'Đặt hủy';
           btnHuy.addEventListener('click', () => {
             Data.setTaskCancelledAt(t.id, new Date().toISOString());
             Stats.render();
@@ -192,8 +197,9 @@ const Stats = {
         if (type === 'cancelled') {
           const btnPending = document.createElement('button');
           btnPending.type = 'button';
-          btnPending.className = 'btn btn-small';
-          btnPending.textContent = 'Đặt lại pending';
+          btnPending.className = 'stats-action-btn stats-action-pending';
+          btnPending.innerHTML = '<span class="stats-action-icon">↩</span><span class="stats-action-label">Đặt lại pending</span>';
+          btnPending.title = 'Đặt lại pending';
           btnPending.addEventListener('click', () => {
             Data.updateTask(t.id, { status: 'pending', cancelledAt: null });
             Stats.render();

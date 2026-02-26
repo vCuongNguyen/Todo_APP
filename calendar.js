@@ -202,8 +202,10 @@ const Calendar = {
       el.style.pointerEvents = 'auto';
       el.style.top = topPct + '%';
       el.style.height = heightPct + '%';
-      el.textContent = s.task.name;
-      el.title = s.task.name + ' · ' + duration + ' phút';
+      const project = s.task.projectId ? Data.getProject(s.task.projectId) : null;
+      el.innerHTML = '<span class="calendar-day-event-name">' + (s.task.name || '') + '</span>' +
+        (project ? '<span class="calendar-day-event-project-tag" style="background:' + (project.color || '#7c6fff') + '">' + (project.name || '') + '</span>' : '');
+      el.title = s.task.name + (project ? ' · ' + (project.name || '') : '') + ' · ' + duration + ' phút';
       el.dataset.taskId = s.task.id;
       el.addEventListener('click', (e) => { e.stopPropagation(); App.openTaskModal({ editId: s.task.id }); });
       eventsLayer.appendChild(el);

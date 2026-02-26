@@ -33,6 +33,7 @@
       <button type="button" class="tab" data-tab="today">⚡ Lịch hôm nay</button>
       <button type="button" class="tab" data-tab="dashboard">Dashboard</button>
       <button type="button" class="tab" data-tab="tasks">Danh sách task</button>
+      <button type="button" class="tab" data-tab="projects">📁 Project</button>
     </nav>
 
     <!-- Tab Calendar -->
@@ -121,12 +122,28 @@
             <option value="not_important_urgent">Gấp</option>
             <option value="not_important_not_urgent">Thấp</option>
           </select>
+          <select id="filter-project" class="filter-select" title="Lọc theo project">
+            <option value="">Project</option>
+          </select>
           <input type="date" id="filter-date" class="filter-date" title="Lọc theo deadline ngày" />
           <input type="month" id="filter-month" class="filter-month" title="Lọc theo deadline tháng" />
         </div>
       </div>
       <div class="dashboard-sort"><span>Sắp xếp theo thời gian & độ ưu tiên</span></div>
       <div id="dashboard-tasks" class="dashboard-tasks"></div>
+    </section>
+
+    <!-- Tab Project: thống kê theo project -->
+    <section id="panel-projects" class="panel">
+      <div class="projects-header">
+        <h2>Thống kê theo Project</h2>
+        <div class="projects-add">
+          <input type="text" id="project-name-input" class="project-name-input" placeholder="Tên project" />
+          <input type="color" id="project-color-input" class="project-color-input" value="#7c6fff" title="Màu" />
+          <button type="button" id="btn-add-project" class="btn btn-primary">+ Thêm project</button>
+        </div>
+      </div>
+      <div id="projects-list" class="projects-list"></div>
     </section>
   </div>
 
@@ -176,6 +193,12 @@
               <option value="true">⚡ Gấp</option>
             </select>
           </div>
+        </div>
+        <div class="form-group">
+          <label>Project</label>
+          <select id="task-project">
+            <option value="">— Không có project —</option>
+          </select>
         </div>
         <div class="form-group">
           <label>Ghi chú</label>
@@ -267,6 +290,33 @@
     </div>
   </div>
 
+  <!-- Modal: Sửa project (đổi tên, màu, gỡ task khỏi project) -->
+  <div id="modal-edit-project" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Sửa project</h2>
+        <button type="button" class="modal-close">&times;</button>
+      </div>
+      <input type="hidden" id="edit-project-id" />
+      <div class="form-group">
+        <label>Tên project</label>
+        <input type="text" id="edit-project-name" placeholder="Tên project" />
+      </div>
+      <div class="form-group">
+        <label>Màu</label>
+        <input type="color" id="edit-project-color" title="Màu" />
+      </div>
+      <div class="form-group">
+        <label>Task thuộc project</label>
+        <div id="edit-project-tasks" class="edit-project-tasks-list"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="edit-project-save" class="btn btn-primary">Lưu</button>
+        <button type="button" class="btn btn-secondary modal-cancel">Đóng</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Chi tiết task (xem/sửa, 3 tab Info / Sub / Note) -->
   <div id="modal-task-detail" class="modal">
     <div class="modal-content modal-content-lg">
@@ -323,6 +373,12 @@
               <option value="true">⚡ Gấp</option>
             </select>
           </div>
+        </div>
+        <div class="form-group">
+          <label>Project</label>
+          <select id="detail-task-project">
+            <option value="">— Không có project —</option>
+          </select>
         </div>
         <button type="button" id="detail-btn-save-info" class="btn btn-primary">💾 Lưu</button>
       </div>

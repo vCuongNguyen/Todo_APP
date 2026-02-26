@@ -71,6 +71,7 @@ const Auth = {
           kpi: d.kpi && typeof d.kpi === 'object' ? d.kpi : { type: 'done_ratio', target: 80, rewardCustom: '' },
           rewards: d.rewards && typeof d.rewards === 'object' ? d.rewards : { points: 0, history: [] },
           history: Array.isArray(d.history) ? d.history : [],
+          projects: Array.isArray(d.projects) ? d.projects : [],
         };
       } else {
         Auth._cloudCache = {
@@ -79,6 +80,7 @@ const Auth = {
           kpi: { type: 'done_ratio', target: 80, rewardCustom: '' },
           rewards: { points: 0, history: [] },
           history: [],
+          projects: [],
         };
       }
     } catch (e) {
@@ -110,6 +112,7 @@ const Auth = {
           kpi: cache.kpi || {},
           rewards: cache.rewards || { points: 0, history: [] },
           history: cache.history || [],
+          projects: cache.projects || [],
           updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
       } catch (e) {

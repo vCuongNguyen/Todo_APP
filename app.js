@@ -33,6 +33,8 @@ const App = {
       App.bindSettings();
       App.bindAuth();
       App.bindTaskDetailModal();
+      App.bindProjects();
+      App.bindEditProjectModal();
       Calendar.init();
       Dashboard.init();
       Stats.init();
@@ -106,6 +108,8 @@ const App = {
         } else if (tab.dataset.tab === 'tasks') {
           Dashboard.render();
           App.updateHeaderPoints();
+        } else if (tab.dataset.tab === 'projects') {
+          App.renderProjectsPanel();
         } else if (tab.dataset.tab === 'today') {
           App.renderTodayPanel();
         } else {
@@ -127,6 +131,183 @@ const App = {
   updateHeaderPoints() {
     const el = document.getElementById('header-points-value');
     if (el) el.textContent = (Data.getRewardsState().points || 0);
+  },
+
+  fillProjectOptions() {
+    const projects = Data.getProjects();
+    const opts = ['<option value="">— Không có project —</option>'];
+    projects.forEach(p => {
+      opts.push('<option value="' + (p.id || '') + '">' + escapeHtml(p.name || '') + '</option>');
+    });
+    const html = opts.join('');
+    const selTask = document.getElementById('task-project');
+    const selDetail = document.getElementById('detail-task-project');
+    const selFilter = document.getElementById('filter-project');
+    if (selTask) selTask.innerHTML = html;
+    if (selDetail) selDetail.innerHTML = html;
+    if (selFilter) {
+      selFilter.innerHTML = '<option value="">Project</option>' + projects.map(p => '<option value="' + (p.id || '') + '">' + escapeHtml(p.name || '') + '</option>').join('');
+    }
+  },
+
+  renderProjectsPanel() {
+    const container = document.getElementById('projects-list');
+    if (!container) return;
+    const projects = Data.getProjects();
+    const tasks = Data.getTasks();
+    const roots = Data.getRootTasks();
+    const getStats = (projectId) => {
+      const list = projectId ? roots.filter(t => t.projectId === projectId) : roots.filter(t => !t.projectId);
+      const total = list.length;
+      const done = list.filter(t => t.status === 'done').length;
+      const late = list.filter(t => t.status === 'late').length;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      return { total, done, late, pct };
+    };
+    let html = '';
+    projects.forEach(p => {
+      const s = getStats(p.id);
+      const projectTasks = roots.filter(t => t.projectId === p.id);
+      let taskListHtml = '';
+      projectTasks.slice(0, 15).forEach(t => {
+        const statusIcon = t.status === 'done' ? '✓' : (t.status === 'late' ? '⚠' : '○');
+        taskListHtml += '<div class="project-card-task-item" data-task-id="' + t.id + '">' +
+          '<span class="project-card-task-name">' + escapeHtml(t.name || '') + '</span> ' +
+          '<span class="project-card-task-status">' + statusIcon + '</span> ' +
+          '<button type="button" class="btn btn-small btn-open-task" data-task-id="' + t.id + '" title="Mở task">✎</button>' +
+          '</div>';
+      });
+      if (projectTasks.length > 15) taskListHtml += '<div class="project-card-task-more">+' + (projectTasks.length - 15) + ' task khác</div>';
+      html += '<div class="project-card" data-project-id="' + (p.id || '') + '">' +
+        '<div class="project-card-head" style="border-left-color:' + (p.color || '#7c6fff') + '">' +
+        '<span class="project-card-name">' + escapeHtml(p.name || '') + '</span>' +
+        '<span class="project-card-color" style="background:' + (p.color || '#7c6fff') + '" title="' + (p.color || '') + '"></span>' +
+        '<button type="button" class="btn btn-small btn-edit-project" data-project-id="' + (p.id || '') + '" title="Sửa project">Sửa</button>' +
+        '</div>' +
+        '<div class="project-card-stats">' +
+        '<span>📋 ' + s.total + ' task</span> <span>✓ ' + s.done + '</span> <span class="' + (s.late ? 'text-danger' : '') + '">Trễ ' + s.late + '</span>' +
+        '</div>' +
+        '<div class="project-card-progress"><div class="project-card-progress-fill" style="width:' + s.pct + '%;background:' + (p.color || '#7c6fff') + '"></div></div>' +
+        '<div class="project-card-pct">' + s.pct + '% hoàn thành</div>' +
+        '<div class="project-card-task-list">' + (taskListHtml || '<div class="project-card-task-empty">Chưa có task</div>') + '</div>' +
+        '</div>';
+    });
+    const noProject = getStats(null);
+    const noProjectTasks = roots.filter(t => !t.projectId);
+    let noProjectListHtml = '';
+    noProjectTasks.slice(0, 15).forEach(t => {
+      const statusIcon = t.status === 'done' ? '✓' : (t.status === 'late' ? '⚠' : '○');
+      noProjectListHtml += '<div class="project-card-task-item">' +
+        '<span class="project-card-task-name">' + escapeHtml(t.name || '') + '</span> ' +
+        '<span class="project-card-task-status">' + statusIcon + '</span> ' +
+        '<button type="button" class="btn btn-small btn-open-task" data-task-id="' + t.id + '" title="Mở task">✎</button>' +
+        '</div>';
+    });
+    if (noProjectTasks.length > 15) noProjectListHtml += '<div class="project-card-task-more">+' + (noProjectTasks.length - 15) + ' task khác</div>';
+    html += '<div class="project-card project-card-none" data-project-id="">' +
+      '<div class="project-card-head" style="border-left-color:var(--text-dim)">' +
+      '<span class="project-card-name">Không có project</span>' +
+      '</div>' +
+      '<div class="project-card-stats">' +
+      '<span>📋 ' + noProject.total + ' task</span> <span>✓ ' + noProject.done + '</span>' +
+      '</div>' +
+      '<div class="project-card-progress"><div class="project-card-progress-fill" style="width:' + noProject.pct + '%"></div></div>' +
+      '<div class="project-card-pct">' + noProject.pct + '%</div>' +
+      '<div class="project-card-task-list">' + (noProjectListHtml || '<div class="project-card-task-empty">Chưa có task</div>') + '</div>' +
+      '</div>';
+    container.innerHTML = html;
+    container.querySelectorAll('.btn-edit-project').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        App.openEditProjectModal(this.dataset.projectId);
+      });
+    });
+    container.querySelectorAll('.btn-open-task').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        App.openTaskModal({ editId: this.dataset.taskId });
+      });
+    });
+    var colorInput = document.getElementById('project-color-input');
+    if (colorInput) colorInput.value = Data.getNextProjectColor();
+  },
+
+  bindProjects() {
+    App.fillProjectOptions();
+    var colorEl = document.getElementById('project-color-input');
+    if (colorEl) colorEl.value = Data.getNextProjectColor();
+    var btnAdd = document.getElementById('btn-add-project');
+    if (btnAdd) btnAdd.addEventListener('click', function() {
+      var nameEl = document.getElementById('project-name-input');
+      var colorEl = document.getElementById('project-color-input');
+      var name = (nameEl && nameEl.value.trim()) || '';
+      if (!name) {
+        alert('Nhập tên project.');
+        return;
+      }
+      var nextAuto = Data.getNextProjectColor();
+      var color = (colorEl && colorEl.value);
+      if (!color || color === nextAuto) color = undefined;
+      Data.addProject({ name, color });
+      if (nameEl) nameEl.value = '';
+      if (colorEl) colorEl.value = Data.getNextProjectColor();
+      App.fillProjectOptions();
+      App.renderProjectsPanel();
+      Dashboard.render();
+    });
+  },
+
+  openEditProjectModal(projectId) {
+    const p = Data.getProject(projectId);
+    if (!p) return;
+    App._editProjectId = projectId;
+    document.getElementById('edit-project-id').value = projectId;
+    document.getElementById('edit-project-name').value = p.name || '';
+    document.getElementById('edit-project-color').value = p.color || '#7c6fff';
+    const roots = Data.getRootTasks();
+    const tasks = roots.filter(t => t.projectId === projectId);
+    const listEl = document.getElementById('edit-project-tasks');
+    listEl.innerHTML = '';
+    if (!tasks.length) {
+      listEl.innerHTML = '<p class="edit-project-no-tasks">Chưa có task nào trong project này.</p>';
+    } else {
+      tasks.forEach(t => {
+        const row = document.createElement('div');
+        row.className = 'edit-project-task-row';
+        const statusIcon = t.status === 'done' ? '✓' : (t.status === 'late' ? '⚠' : '○');
+        row.innerHTML = '<span class="edit-project-task-name">' + escapeHtml(t.name || '') + '</span> ' +
+          '<span class="edit-project-task-status">' + statusIcon + '</span> ' +
+          '<button type="button" class="btn btn-small btn-open-task-edit" data-task-id="' + t.id + '">Mở</button> ' +
+          '<button type="button" class="btn btn-small btn-remove-from-project" data-task-id="' + t.id + '" title="Gỡ task khỏi project">Gỡ khỏi project</button>';
+        row.querySelector('.btn-open-task-edit').addEventListener('click', () => {
+          App.closeModal('modal-edit-project');
+          App.openTaskModal({ editId: t.id });
+        });
+        row.querySelector('.btn-remove-from-project').addEventListener('click', () => {
+          Data.updateTask(t.id, { projectId: null });
+          App.openEditProjectModal(projectId);
+          App.renderProjectsPanel();
+          Dashboard.render();
+        });
+        listEl.appendChild(row);
+      });
+    }
+    App.openModal('modal-edit-project');
+  },
+
+  bindEditProjectModal() {
+    var saveBtn = document.getElementById('edit-project-save');
+    if (saveBtn) saveBtn.addEventListener('click', function() {
+      var id = document.getElementById('edit-project-id').value;
+      var name = (document.getElementById('edit-project-name') && document.getElementById('edit-project-name').value.trim()) || '';
+      var color = (document.getElementById('edit-project-color') && document.getElementById('edit-project-color').value) || '';
+      if (!id || !name) return;
+      Data.updateProject(id, { name, color });
+      App.closeModal('modal-edit-project');
+      App.fillProjectOptions();
+      App.renderProjectsPanel();
+      Dashboard.render();
+    });
   },
 
   bindModals() {
@@ -193,6 +374,7 @@ const App = {
         document.getElementById('task-single-day').value = task.singleDay ? 'true' : 'false';
         document.getElementById('task-important').value = task.important ? 'true' : 'false';
         document.getElementById('task-urgent').value = task.urgent ? 'true' : 'false';
+        document.getElementById('task-project').value = task.projectId || '';
         document.getElementById('task-notes').value = Array.isArray(task.notes) ? task.notes.join('\n') : (task.notes || '');
         document.getElementById('task-is-parent').checked = !!(task.childIds && task.childIds.length);
         if (task.childIds && task.childIds.length) {
@@ -201,6 +383,7 @@ const App = {
         }
       }
     }
+    App.fillProjectOptions();
     App.openModal('modal-task');
   },
 
@@ -216,6 +399,7 @@ const App = {
     document.getElementById('detail-task-single-day').value = task.singleDay ? 'true' : 'false';
     document.getElementById('detail-task-important').value = task.important ? 'true' : 'false';
     document.getElementById('detail-task-urgent').value = task.urgent ? 'true' : 'false';
+    document.getElementById('detail-task-project').value = task.projectId || '';
     document.getElementById('detail-btn-done').textContent = task.status === 'done' ? '↩ Hoàn tác' : '✓ Done';
     App._renderDetailSubtasks();
     App._renderDetailNotes();
@@ -299,6 +483,7 @@ const App = {
         singleDay: document.getElementById('detail-task-single-day').value === 'true',
         important: document.getElementById('detail-task-important').value === 'true',
         urgent: document.getElementById('detail-task-urgent').value === 'true',
+        projectId: document.getElementById('detail-task-project').value || null,
         notes,
       });
       document.getElementById('detail-task-title').textContent = Data.getTask(id).name;
@@ -408,6 +593,7 @@ const App = {
         urgent: document.getElementById('task-urgent').value === 'true',
         notes,
         parentId: parentId || null,
+        projectId: (document.getElementById('task-project') && document.getElementById('task-project').value) || null,
         childIds: [],
       };
       if (App.editTaskId) {
@@ -596,13 +782,17 @@ const App = {
       const alertClass = block.fixed ? '' : Dashboard.getAlertClass(block.task.important, block.task.urgent);
       const dotColor = block.fixed ? 'var(--text-dim)' : Dashboard.getPriorityColor(block.task.important, block.task.urgent);
       const labelDisplay = block.fixed ? '🔒 ' + escapeHtml(block.label || 'Lịch cố định') : escapeHtml(block.label);
+      const projectTag = !block.fixed && block.task && block.task.projectId ? (() => {
+        const p = Data.getProject(block.task.projectId);
+        return p ? '<span class="timeline-project-tag" style="background:' + (p.color || '#7c6fff') + '">' + escapeHtml(p.name || '') + '</span>' : '';
+      })() : '';
       const badge = active ? '<span class="timeline-badge-now">Đang</span>' : '';
       const isTodayPanel = timelineEl.id === 'today-timeline';
       const taskActions = isTodayPanel && !block.fixed && block.task ? '<div class="timeline-row-actions"><button type="button" class="btn btn-small btn-done" data-id="' + block.task.id + '">Done</button></div>' : '';
       row.innerHTML = `
         <span class="timeline-dot" style="background:${dotColor}"></span>
         <span class="timeline-time">${startStr} - ${endStr}</span>
-        <div class="timeline-bar ${block.fixed ? 'fixed' : ''} ${alertClass}" style="min-width:80px">${labelDisplay}</div>
+        <div class="timeline-bar ${block.fixed ? 'fixed' : ''} ${alertClass}" style="min-width:80px">${labelDisplay}${projectTag}</div>
         ${badge}
         ${taskActions}
       `;
@@ -623,9 +813,11 @@ const App = {
       const div = document.createElement('div');
       div.className = 'queue-item';
       const dotColor = Dashboard.getPriorityColor(task.important, task.urgent);
+      const project = task.projectId ? Data.getProject(task.projectId) : null;
+      const queueProjectTag = project ? '<span class="queue-project-tag" style="background:' + (project.color || '#7c6fff') + '">' + escapeHtml(project.name || '') + '</span>' : '';
       div.innerHTML = `
         <span class="queue-item-dot" style="background:${dotColor}"></span>
-        <span>${escapeHtml(task.name)} (${Data.getTaskTotalMinutes(task, tasks)} phút)</span>
+        <span>${escapeHtml(task.name)} (${Data.getTaskTotalMinutes(task, tasks)} phút)</span> ${queueProjectTag}
         <div class="actions">
           <button type="button" class="btn btn-small btn-done" data-id="${task.id}">Done</button>
           <button type="button" class="btn btn-small btn-edit" data-id="${task.id}">Sửa</button>
@@ -702,6 +894,7 @@ const App = {
         kpi: Data.getKPI(),
         rewards: Data.getRewardsState(),
         history: Data.getHistory(),
+        projects: Data.getProjects(),
         exportedAt: new Date().toISOString(),
       };
       const a = document.createElement('a');
@@ -722,6 +915,7 @@ const App = {
           if (data.kpi) Data.setKPI(data.kpi);
           if (data.rewards) Data.setRewardsState(data.rewards);
           if (data.history) localStorage.setItem('todo_history', JSON.stringify(data.history));
+          if (data.projects && Array.isArray(data.projects)) Data.setProjects(data.projects);
           Calendar.render();
           Dashboard.render();
           App.renderDayTimeline();

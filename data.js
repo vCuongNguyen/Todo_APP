@@ -10,6 +10,20 @@ const STORAGE_SCHEDULE = 'todo_fixed_schedule';
 const STORAGE_KPI = 'todo_kpi';
 const STORAGE_REWARDS = 'todo_rewards';
 const STORAGE_HISTORY = 'todo_history'; // for stats: done/late/cancelled
+const STORAGE_PROJECTS = 'todo_projects';
+
+/** Bảng màu tự động cho project (khi không chọn màu) - tăng số lượng dải màu */
+const PROJECT_COLORS = [
+  '#7c6fff', '#fb923c', '#38bdf8', '#20d9a0', '#ff4f70', '#a78bfa',
+  '#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#6366f1', '#14b8a6',
+  '#eab308', '#d946ef', '#0ea5e9', '#22c55e', '#f43f5e', '#8b5cf6',
+  '#f97316', '#2dd4bf', '#e879f9', '#4ade80', '#facc15', '#38bdf8',
+  '#c084fc', '#34d399', '#fb7185', '#60a5fa', '#a3e635', '#f472b6',
+];
+
+function getNextProjectColor(index) {
+  return PROJECT_COLORS[index % PROJECT_COLORS.length];
+}
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -93,7 +107,7 @@ function getTaskCompletionByTime(task, allTasks) {
 
 const Data = {
   _source: 'local',
-  _cache: { tasks: [], schedule: [], kpi: null, rewards: null, history: [] },
+  _cache: { tasks: [], schedule: [], kpi: null, rewards: null, history: [], projects: [] },
   _cloudPersist: null,
 
   getCloudCache() {
@@ -104,6 +118,7 @@ const Data = {
       kpi: this._cache.kpi ? { ...this._cache.kpi } : { type: 'done_ratio', target: 80, rewardCustom: '' },
       rewards: this._cache.rewards ? { ...this._cache.rewards, history: (this._cache.rewards.history || []).slice() } : { points: 0, history: [] },
       history: (this._cache.history || []).slice(),
+      projects: (this._cache.projects || []).slice(),
     };
   },
   useCloudData(cache) {
@@ -114,6 +129,7 @@ const Data = {
         kpi: cache.kpi && typeof cache.kpi === 'object' ? cache.kpi : { type: 'done_ratio', target: 80, rewardCustom: '' },
         rewards: cache.rewards && typeof cache.rewards === 'object' ? cache.rewards : { points: 0, history: [] },
         history: Array.isArray(cache.history) ? cache.history : [],
+        projects: Array.isArray(cache.projects) ? cache.projects : [],
       };
     }
     this._source = 'cloud';
@@ -164,6 +180,7 @@ const Data = {
       notes: Array.isArray(task.notes) ? task.notes : (task.notes ? [task.notes] : []),
       parentId: task.parentId || null,
       childIds: task.childIds || [],
+      projectId: task.projectId || null,
       status: task.status || 'pending',
       completedAt: task.completedAt || null,
       completedMinutes: task.completedMinutes || 0,
@@ -214,6 +231,66 @@ const Data = {
 
   getSubtasks(parentId) {
     return Data.getTasks().filter(t => t.parentId === parentId);
+  },
+
+  getProjects() {
+    if (this._source === 'cloud') return this._cache.projects || [];
+    try {
+      const raw = localStorage.getItem(STORAGE_PROJECTS);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  setProjects(projects) {
+    if (this._source === 'cloud') {
+      this._cache.projects = projects;
+      this._persist();
+      return;
+    }
+    localStorage.setItem(STORAGE_PROJECTS, JSON.stringify(projects));
+  },
+
+  getProject(id) {
+    return (Data.getProjects() || []).find(p => p.id === id);
+  },
+
+  addProject(project) {
+    const projects = Data.getProjects().slice();
+    const color = project.color || getNextProjectColor(projects.length);
+    const p = {
+      id: project.id || uid(),
+      name: project.name || 'Project',
+      color,
+    };
+    projects.push(p);
+    Data.setProjects(projects);
+    return p;
+  },
+
+  /** Màu tự động cho project tiếp theo (để hiển thị preview trong form) */
+  getNextProjectColor() {
+    return getNextProjectColor(Data.getProjects().length);
+  },
+
+  updateProject(id, updates) {
+    const projects = Data.getProjects().slice();
+    const i = projects.findIndex(p => p.id === id);
+    if (i === -1) return null;
+    projects[i] = { ...projects[i], ...updates };
+    Data.setProjects(projects);
+    return projects[i];
+  },
+
+  getTasksByProject(projectId) {
+    const tasks = Data.getTasks();
+    if (!projectId) return tasks.filter(t => !t.projectId);
+    return tasks.filter(t => t.projectId === projectId);
+  },
+
+  getRootTasksByProject(projectId) {
+    return Data.getRootTasks().filter(t => t.projectId === projectId);
   },
 
   getFixedSchedule() {
@@ -321,4 +398,6 @@ const Data = {
   getPriorityPoints,
   Priority,
   uid,
+  PROJECT_COLORS,
+  getNextProjectColor,
 };

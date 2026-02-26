@@ -31,6 +31,8 @@ const Dashboard = {
     if (dateEl) dateEl.addEventListener('change', function() { Dashboard.render(); });
     var monthEl = document.getElementById('filter-month');
     if (monthEl) monthEl.addEventListener('change', function() { Dashboard.render(); });
+    var projectEl = document.getElementById('filter-project');
+    if (projectEl) projectEl.addEventListener('change', function() { Dashboard.render(); });
   },
 
   getStats() {
@@ -97,6 +99,7 @@ const Dashboard = {
     var filterPriority = (document.getElementById('filter-priority') && document.getElementById('filter-priority').value) || '';
     var filterDate = (document.getElementById('filter-date') && document.getElementById('filter-date').value) || '';
     var filterMonth = (document.getElementById('filter-month') && document.getElementById('filter-month').value) || '';
+    var filterProject = (document.getElementById('filter-project') && document.getElementById('filter-project').value) || '';
 
     var list = roots.filter(function(t) {
       if (Dashboard.filterMode === 'active' && t.status !== 'pending') return false;
@@ -104,6 +107,7 @@ const Dashboard = {
       if (Dashboard.filterMode === 'late' && t.status !== 'late') return false;
       if (searchQ && !((t.name || '').toLowerCase().includes(searchQ))) return false;
       if (filterPriority && Data.getPriority(t.important, t.urgent) !== filterPriority) return false;
+      if (filterProject && t.projectId !== filterProject) return false;
       if (filterDate && t.deadline) {
         var d = t.deadline.slice(0, 10);
         if (d !== filterDate) return false;
@@ -147,10 +151,17 @@ const Dashboard = {
     var pct = (task.childIds && task.childIds.length) ? (pctCount + pctTime) / 2 : (task.status === 'done' ? 100 : ((task.completedMinutes || 0) / (task.estimatedMinutes || 1) * 100));
     var alertClass = Dashboard.getAlertClass(task.important, task.urgent);
     var gradientClass = 'task-bar-' + alertClass.replace('alert-', '');
+    var project = task.projectId ? Data.getProject(task.projectId) : null;
+    var projectTagHtml = project ? '<span class="task-bar-project-tag" style="background:' + (project.color || '#7c6fff') + '">' + escapeHtml(project.name || '') + '</span>' : '';
 
     var bar = document.createElement('div');
-    bar.className = 'task-bar task-bar-gradient ' + gradientClass + (isSubtask ? ' subtask' : '');
+    bar.className = 'task-bar task-bar-gradient ' + gradientClass + (isSubtask ? ' subtask' : '') + (project ? ' task-bar-has-project' : '');
     bar.dataset.id = task.id;
+    if (project) {
+      bar.style.borderLeftWidth = '4px';
+      bar.style.borderLeftStyle = 'solid';
+      bar.style.borderLeftColor = project.color || '#7c6fff';
+    }
     if (task.status === 'done') { bar.style.opacity = '0.55'; bar.classList.add('task-done'); }
     var deadlineStr = task.deadline ? new Date(task.deadline).toLocaleDateString('vi-VN') : '-';
     var subInfo = (task.childIds && task.childIds.length)
@@ -164,7 +175,7 @@ const Dashboard = {
     bar.innerHTML = '<span class="task-bar-dot"></span>' +
       '<div class="task-bar-main">' +
         '<div class="task-bar-head">' +
-          '<span class="task-bar-name">' + escapeHtml(task.name) + '</span>' + badgeLate + badgeDone +
+          '<span class="task-bar-name">' + escapeHtml(task.name) + '</span>' + projectTagHtml + badgeLate + badgeDone +
         '</div>' +
         (progressHtml || '') +
         '<div class="task-bar-meta">Deadline: ' + deadlineStr + ' · ' + totalMin + ' phút' + subInfo + '</div>' +

@@ -167,6 +167,15 @@ const Dashboard = {
     var subInfo = (task.childIds && task.childIds.length)
       ? ' (' + (pctCount).toFixed(0) + '% theo số task, ' + (pctTime).toFixed(0) + '% theo thời gian)'
       : '';
+    var sumChildrenMin = (task.childIds && task.childIds.length)
+      ? task.childIds.reduce(function(s, id) {
+          var c = allTasks.find(function(t) { return t.id === id; });
+          return s + (c ? Data.getTaskTotalMinutes(c, allTasks) : 0);
+        }, 0)
+      : 0;
+    var timeMeta = (task.childIds && task.childIds.length)
+      ? 'Ước lượng: ' + (task.estimatedMinutes || 0) + ' phút · Tổng (con): ' + sumChildrenMin + ' phút' + subInfo
+      : totalMin + ' phút';
     var isLate = task.status === 'late';
     var badgeLate = isLate ? '<span class="task-bar-badge task-bar-badge-late">Trễ</span>' : '';
     var badgeDone = task.status === 'done' ? '<span class="task-bar-badge task-bar-badge-done">✓</span>' : '';
@@ -178,7 +187,7 @@ const Dashboard = {
           '<span class="task-bar-name">' + escapeHtml(task.name) + '</span>' + projectTagHtml + badgeLate + badgeDone +
         '</div>' +
         (progressHtml || '') +
-        '<div class="task-bar-meta">Deadline: ' + deadlineStr + ' · ' + totalMin + ' phút' + subInfo + '</div>' +
+        '<div class="task-bar-meta">Deadline: ' + deadlineStr + ' · ' + timeMeta + '</div>' +
       '</div>' +
       '<div class="task-bar-right">' +
         '<span class="task-bar-time">~' + totalMin + 'p</span>' +

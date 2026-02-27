@@ -34,6 +34,7 @@
       <button type="button" class="tab" data-tab="dashboard">Dashboard</button>
       <button type="button" class="tab" data-tab="tasks">Danh sách task</button>
       <button type="button" class="tab" data-tab="projects">📁 Project</button>
+      <button type="button" class="tab" data-tab="recurring">🔄 Task định kỳ</button>
     </nav>
 
     <!-- Tab Calendar -->
@@ -144,6 +145,16 @@
         </div>
       </div>
       <div id="projects-list" class="projects-list"></div>
+    </section>
+
+    <!-- Tab Task định kỳ -->
+    <section id="panel-recurring" class="panel">
+      <div class="recurring-header">
+        <h2>Task định kỳ</h2>
+        <p class="recurring-desc">Tự động tạo task mỗi ngày / mỗi tuần theo cấu hình. Mỗi chu kỳ chỉ tạo 1 lần khi mở app.</p>
+        <button type="button" id="btn-add-recurring" class="btn btn-primary">+ Thêm task định kỳ</button>
+      </div>
+      <div id="recurring-list" class="recurring-list"></div>
     </section>
   </div>
 
@@ -318,6 +329,79 @@
     </div>
   </div>
 
+  <!-- Modal: Cấu hình task định kỳ -->
+  <div id="modal-recurring" class="modal">
+    <div class="modal-content modal-content-recurring">
+      <div class="modal-header recurring-modal-header">
+        <h2 id="modal-recurring-title" class="recurring-modal-title">🔄 Thêm task định kỳ</h2>
+        <button type="button" class="modal-close" title="Đóng">&times;</button>
+      </div>
+      <input type="hidden" id="recurring-id" />
+      <div class="recurring-modal-body">
+        <section class="recurring-section">
+          <h3 class="recurring-section-title">Thông tin task</h3>
+          <div class="form-group">
+            <label>Tên task *</label>
+            <input type="text" id="recurring-name" placeholder="VD: Standup, Review code" />
+          </div>
+          <div class="form-row recurring-form-row">
+            <div class="form-group">
+              <label>Thời gian ước lượng (phút) *</label>
+              <input type="number" id="recurring-estimated" min="1" placeholder="30" />
+            </div>
+            <div class="form-group">
+              <label>Project</label>
+              <select id="recurring-project">
+                <option value="">— Không —</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Ghi chú</label>
+            <textarea id="recurring-notes" rows="2" placeholder="Ghi chú cho task tạo ra"></textarea>
+          </div>
+        </section>
+        <section class="recurring-section">
+          <h3 class="recurring-section-title">Định kỳ &amp; deadline</h3>
+          <div class="form-group">
+            <label>Lặp lại</label>
+            <div class="form-row recurring-form-row recurring-recurrence-row">
+              <select id="recurring-type">
+                <option value="daily">Mỗi ngày</option>
+                <option value="weekly">Mỗi tuần (chọn ngày)</option>
+              </select>
+              <select id="recurring-day" title="Ngày trong tuần">
+                <option value="0">Chủ nhật</option>
+                <option value="1">Thứ 2</option>
+                <option value="2">Thứ 3</option>
+                <option value="3">Thứ 4</option>
+                <option value="4">Thứ 5</option>
+                <option value="5">Thứ 6</option>
+                <option value="6">Thứ 7</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Giờ deadline *</label>
+            <p class="form-hint">Mỗi ngày: giờ trong ngày. Mỗi tuần: ngày đã chọn + giờ này.</p>
+            <input type="time" id="recurring-deadline-time" class="recurring-time-input" required value="23:59" />
+          </div>
+        </section>
+        <section class="recurring-section recurring-section-subtasks">
+          <h3 class="recurring-section-title">Task con (tùy chọn)</h3>
+          <p class="form-hint recurring-subtasks-hint">Task cha + các con sẽ được tạo cùng lúc mỗi chu kỳ.</p>
+          <div id="recurring-subtasks" class="recurring-subtasks-list"></div>
+          <button type="button" id="recurring-add-subtask" class="btn btn-secondary btn-add-subtask">+ Thêm task con</button>
+        </section>
+      </div>
+      <div class="modal-actions recurring-modal-actions">
+        <button type="button" id="recurring-save" class="btn btn-primary">Lưu</button>
+        <button type="button" id="recurring-delete" class="btn btn-delete" style="display:none">Xóa cấu hình</button>
+        <button type="button" class="btn btn-secondary modal-cancel">Đóng</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Chi tiết task (xem/sửa, 3 tab Info / Sub / Note) -->
   <div id="modal-task-detail" class="modal">
     <div class="modal-content modal-content-lg">
@@ -349,7 +433,7 @@
           </div>
           <div class="form-group">
             <label>Deadline *</label>
-            <input type="datetime-local" id="detail-task-deadline" />
+            <input type="datetime-local" id="detail-task-deadline" required />
           </div>
         </div>
         <div class="form-group">

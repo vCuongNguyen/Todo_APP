@@ -83,7 +83,8 @@ const Scheduler = {
    * Sắp xếp task trong ngày: chọn ngày (YYYY-MM-DD), lấy task có deadline trong ngày hoặc span ngày,
    * sort theo ưu tiên (important+urgent > important > urgent > low), xếp vào free slots.
    * Nếu truyền nowMinutesInDay (phút từ 0h đến giờ hiện tại), chỉ xếp vào khung rảnh TỪ THỜI ĐIỂM NÀY TRỞ ĐI (không dùng slot đã qua).
-   * Trả về: { scheduled: [{ task, startMin, endMin, slotIndex }], queue: [task] }
+   * Khi xếp mỗi task, chỉ dùng phần slot trước deadline của task đó (tránh task vào hàng chờ oan khi còn đủ thời gian trước deadline).
+   * Trả về: { scheduled, queue, freeSlots, totalFreeMinutes }
    */
   scheduleForDay(dateStr, tasks, fixedSchedule, nowMinutesInDay) {
     let freeSlots = Scheduler.getFreeSlotsForDay(dateStr, fixedSchedule);
@@ -107,6 +108,15 @@ const Scheduler = {
     const dayStart = date.getTime();
     const dayEnd = dayStart + 24 * 60 * 60 * 1000;
 
+    function deadlineToMinutesInDay(deadlineIso) {
+      if (!deadlineIso) return 24 * 60;
+      const d = new Date(deadlineIso);
+      const y = date.getFullYear(), m = date.getMonth(), dDate = date.getDate();
+      const sameDay = d.getFullYear() === y && d.getMonth() === m && d.getDate() === dDate;
+      if (!sameDay) return 24 * 60;
+      return d.getHours() * 60 + d.getMinutes();
+    }
+
     const eligible = tasks.filter(t => {
       if (t.status !== 'pending') return false;
       if (t.parentId) return false;
@@ -120,24 +130,26 @@ const Scheduler = {
       task: t,
       minutes: Data.getTaskTotalMinutes(t, tasks),
       priority: getPriority(t.important, t.urgent),
+      deadlineMin: deadlineToMinutesInDay(t.deadline),
     }));
 
     eligible.sort((a, b) => {
       const pa = priorityOrder.indexOf(a.priority);
       const pb = priorityOrder.indexOf(b.priority);
       if (pa !== pb) return pa - pb;
-      return new Date(a.task.deadline).getTime() - new Date(b.task.deadline).getTime();
+      return a.deadlineMin - b.deadlineMin;
     });
 
     const slotCopies = freeSlots.map(s => ({ startMin: s.startMin, endMin: s.endMin }));
     const scheduled = [];
     const queue = [];
 
-    for (const { task, minutes } of eligible) {
+    for (const { task, minutes, deadlineMin } of eligible) {
       let placed = false;
       for (let i = 0; i < slotCopies.length; i++) {
         const slot = slotCopies[i];
-        const available = slot.endMin - slot.startMin;
+        const slotEndByDeadline = Math.min(slot.endMin, deadlineMin);
+        const available = slotEndByDeadline - slot.startMin;
         if (available >= minutes) {
           scheduled.push({
             task,

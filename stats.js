@@ -150,6 +150,8 @@ const Stats = {
             Stats.render();
             Dashboard.render();
             KPI.render();
+            App.renderDayTimeline();
+            App.renderTodayPanel();
           }
         });
         actions.appendChild(btnSua);
@@ -165,6 +167,8 @@ const Stats = {
             Stats.render();
             Dashboard.render();
             KPI.render();
+            App.renderDayTimeline();
+            App.renderTodayPanel();
           });
           actions.appendChild(btnPending);
         }
@@ -179,6 +183,8 @@ const Stats = {
             Stats.render();
             Dashboard.render();
             KPI.render();
+            App.renderDayTimeline();
+            App.renderTodayPanel();
           });
           actions.appendChild(btnPending);
           const btnHuy = document.createElement('button');
@@ -191,6 +197,8 @@ const Stats = {
             Stats.render();
             Dashboard.render();
             KPI.render();
+            App.renderDayTimeline();
+            App.renderTodayPanel();
           });
           actions.appendChild(btnHuy);
         }
@@ -205,6 +213,8 @@ const Stats = {
             Stats.render();
             Dashboard.render();
             KPI.render();
+            App.renderDayTimeline();
+            App.renderTodayPanel();
           });
           actions.appendChild(btnPending);
         }

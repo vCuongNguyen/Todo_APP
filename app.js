@@ -35,6 +35,7 @@ const App = {
       App.bindTaskDetailModal();
       App.bindProjects();
       App.bindEditProjectModal();
+      App.bindRecurringModal();
       Calendar.init();
       Dashboard.init();
       Stats.init();
@@ -45,6 +46,9 @@ const App = {
       Dashboard.render();
       Stats.render();
       KPI.render();
+      Data.processRecurringTemplates();
+      Dashboard.render();
+      Stats.render();
       App.renderDayTimeline();
       setInterval(function() {
         App.checkLateTasks();
@@ -54,6 +58,8 @@ const App = {
       }, 60000);
       document.getElementById('btn-add-task').addEventListener('click', function() { App.openTaskModal({}); });
       document.getElementById('btn-settings').addEventListener('click', function() { App.openModal('modal-settings'); });
+      var btnAddRecurring = document.getElementById('btn-add-recurring');
+      if (btnAddRecurring) btnAddRecurring.addEventListener('click', function() { App.openRecurringModal(); });
       document.getElementById('btn-kpi').addEventListener('click', function() {
         KPI.loadIntoSettings();
         App.openModal('modal-kpi');
@@ -110,6 +116,8 @@ const App = {
           App.updateHeaderPoints();
         } else if (tab.dataset.tab === 'projects') {
           App.renderProjectsPanel();
+        } else if (tab.dataset.tab === 'recurring') {
+          App.renderRecurringPanel();
         } else if (tab.dataset.tab === 'today') {
           App.renderTodayPanel();
         } else {
@@ -323,6 +331,195 @@ const App = {
     });
   },
 
+  renderRecurringPanel() {
+    const container = document.getElementById('recurring-list');
+    if (!container) return;
+    const list = Data.getRecurringTemplates();
+    const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+    if (!list.length) {
+      container.innerHTML = '<p class="recurring-empty">Chưa có cấu hình task định kỳ. Bấm "Thêm task định kỳ" để tạo.</p>';
+    } else {
+      container.innerHTML = list.map(t => {
+        const r = t.recurrence || {};
+        const recurText = r.type === 'weekly' && r.dayOfWeek !== undefined
+          ? 'Mỗi ' + (dayNames[r.dayOfWeek] || '')
+          : 'Mỗi ngày';
+        const projectName = t.projectId ? ((Data.getProject(t.projectId) || {}).name || '') : '—';
+        const subText = (t.subtasks || []).length ? ' (' + t.subtasks.length + ' task con)' : '';
+        return '<div class="recurring-card" data-recurring-id="' + (t.id || '') + '">' +
+          '<div class="recurring-card-head">' +
+          '<span class="recurring-card-name">' + escapeHtml(t.name || '') + '</span>' +
+          '<span class="recurring-card-meta">' + (t.estimatedMinutes || 30) + ' phút · ' + recurText + subText + '</span>' +
+          '</div>' +
+          '<div class="recurring-card-extra">Project: ' + escapeHtml(projectName) + '</div>' +
+          '<div class="recurring-card-actions">' +
+          '<button type="button" class="btn btn-small btn-edit-recurring recurring-card-btn recurring-card-btn-edit" data-id="' + (t.id || '') + '" title="Sửa">✎</button>' +
+          '<button type="button" class="btn btn-small btn-delete-recurring recurring-card-btn recurring-card-btn-delete" data-id="' + (t.id || '') + '" title="Xóa">🗑</button>' +
+          '</div></div>';
+      }).join('');
+    }
+    container.querySelectorAll('.btn-edit-recurring').forEach(btn => {
+      btn.addEventListener('click', function() { App.openRecurringModal(this.dataset.id); });
+    });
+    container.querySelectorAll('.btn-delete-recurring').forEach(btn => {
+      btn.addEventListener('click', function() {
+        var id = this.dataset.id;
+        if (!id) return;
+        if (!confirm('Xóa cấu hình task định kỳ này?')) return;
+        Data.deleteRecurringTemplate(id);
+        App.renderRecurringPanel();
+      });
+    });
+  },
+
+  openRecurringModal(editId) {
+    const titleEl = document.getElementById('modal-recurring-title');
+    const idEl = document.getElementById('recurring-id');
+    const nameEl = document.getElementById('recurring-name');
+    const estimatedEl = document.getElementById('recurring-estimated');
+    const projectEl = document.getElementById('recurring-project');
+    const notesEl = document.getElementById('recurring-notes');
+    const typeEl = document.getElementById('recurring-type');
+    const dayEl = document.getElementById('recurring-day');
+    const deleteBtn = document.getElementById('recurring-delete');
+    if (!titleEl || !idEl) return;
+    App.fillRecurringProjectOptions();
+    if (editId) {
+      const t = Data.getRecurringTemplate(editId);
+      if (!t) return;
+      titleEl.textContent = '🔄 Sửa task định kỳ';
+      idEl.value = t.id;
+      nameEl.value = t.name || '';
+      estimatedEl.value = t.estimatedMinutes || 30;
+      projectEl.value = t.projectId || '';
+      notesEl.value = Array.isArray(t.notes) ? t.notes.join('\n') : (t.notes || '');
+      typeEl.value = (t.recurrence || {}).type || 'daily';
+      dayEl.value = (t.recurrence || {}).dayOfWeek !== undefined ? String(t.recurrence.dayOfWeek) : '1';
+      dayEl.style.display = typeEl.value === 'weekly' ? '' : 'none';
+      deleteBtn.style.display = '';
+      var timeEl = document.getElementById('recurring-deadline-time');
+      if (timeEl) {
+        var h = t.deadlineHour != null ? t.deadlineHour : 23;
+        var m = t.deadlineMinute != null ? t.deadlineMinute : 59;
+        timeEl.value = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+      }
+      var listEl = document.getElementById('recurring-subtasks');
+      listEl.innerHTML = '';
+      (t.subtasks || []).forEach(sub => {
+        var row = document.createElement('div');
+        row.className = 'recurring-subtask-row';
+        row.innerHTML = '<label class="recurring-sub-label">Tên</label>' +
+          '<input type="text" class="recurring-sub-name" placeholder="Tên task con" value="' + escapeHtml(sub.name || '') + '" />' +
+          '<label class="recurring-sub-label recurring-sub-label-phut">Phút</label>' +
+          '<input type="number" class="recurring-sub-est" min="1" placeholder="15" value="' + (sub.estimatedMinutes || 15) + '" />' +
+          '<button type="button" class="btn btn-small recurring-remove-sub" title="Xóa task con">×</button>';
+        listEl.appendChild(row);
+        row.querySelector('.recurring-remove-sub').addEventListener('click', function() { row.remove(); });
+      });
+    } else {
+      titleEl.textContent = '🔄 Thêm task định kỳ';
+      idEl.value = '';
+      nameEl.value = '';
+      estimatedEl.value = '30';
+      projectEl.value = '';
+      notesEl.value = '';
+      typeEl.value = 'daily';
+      dayEl.value = '1';
+      dayEl.style.display = 'none';
+      deleteBtn.style.display = 'none';
+      document.getElementById('recurring-subtasks').innerHTML = '';
+      var timeEl = document.getElementById('recurring-deadline-time');
+      if (timeEl) timeEl.value = '23:59';
+    }
+    App.openModal('modal-recurring');
+  },
+
+  fillRecurringProjectOptions() {
+    var sel = document.getElementById('recurring-project');
+    if (!sel) return;
+    var projects = Data.getProjects();
+    sel.innerHTML = '<option value="">— Không —</option>' + projects.map(p => '<option value="' + (p.id || '') + '">' + escapeHtml(p.name || '') + '</option>').join('');
+  },
+
+  bindRecurringModal() {
+    var typeEl = document.getElementById('recurring-type');
+    var dayEl = document.getElementById('recurring-day');
+    if (typeEl && dayEl) {
+      typeEl.addEventListener('change', function() {
+        dayEl.style.display = this.value === 'weekly' ? '' : 'none';
+      });
+    }
+    var addSub = document.getElementById('recurring-add-subtask');
+    if (addSub) addSub.addEventListener('click', function() {
+      var listEl = document.getElementById('recurring-subtasks');
+      var row = document.createElement('div');
+      row.className = 'recurring-subtask-row';
+      row.innerHTML = '<label class="recurring-sub-label">Tên</label>' +
+        '<input type="text" class="recurring-sub-name" placeholder="Tên task con" />' +
+        '<label class="recurring-sub-label recurring-sub-label-phut">Phút</label>' +
+        '<input type="number" class="recurring-sub-est" min="1" placeholder="15" value="15" />' +
+        '<button type="button" class="btn btn-small recurring-remove-sub" title="Xóa task con">×</button>';
+      listEl.appendChild(row);
+      row.querySelector('.recurring-remove-sub').addEventListener('click', function() { row.remove(); });
+    });
+    document.getElementById('recurring-save').addEventListener('click', function() {
+      var id = document.getElementById('recurring-id').value;
+      var name = (document.getElementById('recurring-name') && document.getElementById('recurring-name').value.trim()) || '';
+      var estimated = parseInt(document.getElementById('recurring-estimated').value, 10) || 30;
+      var projectId = (document.getElementById('recurring-project') && document.getElementById('recurring-project').value) || '';
+      var notesRaw = (document.getElementById('recurring-notes') && document.getElementById('recurring-notes').value) || '';
+      var notes = notesRaw.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+      var type = (document.getElementById('recurring-type') && document.getElementById('recurring-type').value) || 'daily';
+      var dayOfWeek = parseInt(document.getElementById('recurring-day').value, 10);
+      if (!name) {
+        alert('Nhập tên task.');
+        return;
+      }
+      var timeVal = (document.getElementById('recurring-deadline-time') && document.getElementById('recurring-deadline-time').value) || '';
+      if (!timeVal) {
+        alert('Chọn giờ deadline (bắt buộc).');
+        return;
+      }
+      var timeParts = timeVal.split(':');
+      var deadlineHour = parseInt(timeParts[0], 10) || 23;
+      var deadlineMinute = parseInt(timeParts[1], 10) || 59;
+      var subtaskRows = document.querySelectorAll('#recurring-subtasks .recurring-subtask-row');
+      var subtasks = [];
+      subtaskRows.forEach(function(row) {
+        var n = (row.querySelector('.recurring-sub-name') && row.querySelector('.recurring-sub-name').value.trim()) || '';
+        var e = parseInt(row.querySelector('.recurring-sub-est') && row.querySelector('.recurring-sub-est').value, 10) || 15;
+        if (n) subtasks.push({ name: n, estimatedMinutes: e });
+      });
+      var payload = {
+        name: name,
+        estimatedMinutes: estimated,
+        projectId: projectId || null,
+        notes: notes,
+        recurrence: { type: type, dayOfWeek: type === 'weekly' ? dayOfWeek : undefined },
+        deadlineHour: deadlineHour,
+        deadlineMinute: deadlineMinute,
+        subtasks: subtasks,
+      };
+      if (id) {
+        Data.updateRecurringTemplate(id, payload);
+      } else {
+        Data.addRecurringTemplate(payload);
+      }
+      App.closeModal('modal-recurring');
+      App.renderRecurringPanel();
+      Dashboard.render();
+    });
+    var delBtn = document.getElementById('recurring-delete');
+    if (delBtn) delBtn.addEventListener('click', function() {
+      var id = document.getElementById('recurring-id').value;
+      if (!id) return;
+      if (!confirm('Xóa cấu hình task định kỳ này?')) return;
+      Data.deleteRecurringTemplate(id);
+      App.closeModal('modal-recurring');
+      App.renderRecurringPanel();
+    });
+  },
+
   bindModals() {
     document.querySelectorAll('.modal-close, .modal-cancel').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -487,9 +684,14 @@ const App = {
     if (saveBtn) saveBtn.addEventListener('click', () => {
       const id = App._detailTaskId;
       if (!id) return;
+      const deadlineVal = (document.getElementById('detail-task-deadline') && document.getElementById('detail-task-deadline').value) || '';
+      if (!deadlineVal.trim()) {
+        alert('Deadline là bắt buộc. Vui lòng chọn ngày và giờ.');
+        return;
+      }
       const task = Data.getTask(id);
       const notes = Array.isArray(task.notes) ? task.notes : [];
-      Data.updateTask(id, {
+      const updates = {
         name: document.getElementById('detail-task-name').value.trim(),
         estimatedMinutes: parseInt(document.getElementById('detail-task-estimated').value, 10) || 30,
         deadline: document.getElementById('detail-task-deadline').value,
@@ -498,7 +700,13 @@ const App = {
         urgent: document.getElementById('detail-task-urgent').value === 'true',
         projectId: document.getElementById('detail-task-project').value || null,
         notes,
-      });
+      };
+      const newDeadlineMs = updates.deadline ? new Date(updates.deadline).getTime() : NaN;
+      if (task && (task.status === 'late' || task.status === 'cancelled') && newDeadlineMs && isFinite(newDeadlineMs) && newDeadlineMs > Date.now()) {
+        updates.status = 'pending';
+        updates.cancelledAt = null;
+      }
+      Data.updateTask(id, updates);
       document.getElementById('detail-task-title').textContent = Data.getTask(id).name;
       Calendar.render();
       Dashboard.render();
@@ -594,6 +802,11 @@ const App = {
       e.preventDefault();
       const id = document.getElementById('task-id').value;
       const parentId = document.getElementById('task-parent-id').value || null;
+      const deadlineVal = (document.getElementById('task-deadline') && document.getElementById('task-deadline').value) || '';
+      if (!deadlineVal.trim()) {
+        alert('Deadline là bắt buộc. Vui lòng chọn ngày và giờ.');
+        return;
+      }
       const notesRaw = document.getElementById('task-notes').value.trim();
       const notes = notesRaw ? notesRaw.split('\n').map(s => s.trim()).filter(Boolean) : [];
       const payload = {
@@ -609,9 +822,16 @@ const App = {
         projectId: (document.getElementById('task-project') && document.getElementById('task-project').value) || null,
         childIds: [],
       };
-      if (App.editTaskId) {
-        const existing = Data.getTask(App.editTaskId);
-        if (existing) payload.childIds = existing.childIds || [];
+      if (id) {
+        const existing = Data.getTask(id);
+        if (existing) {
+          payload.childIds = existing.childIds || [];
+          const newDeadlineMs = payload.deadline ? new Date(payload.deadline).getTime() : NaN;
+          if ((existing.status === 'late' || existing.status === 'cancelled') && newDeadlineMs && isFinite(newDeadlineMs) && newDeadlineMs > Date.now()) {
+            payload.status = 'pending';
+            payload.cancelledAt = null;
+          }
+        }
       }
       let task;
       if (id) {
@@ -635,6 +855,7 @@ const App = {
       Calendar.render();
       Dashboard.render();
       App.renderDayTimeline();
+      App.renderTodayPanel();
     });
   },
 
@@ -831,22 +1052,22 @@ const App = {
       div.innerHTML = `
         <span class="queue-item-dot" style="background:${dotColor}"></span>
         <span>${escapeHtml(task.name)} (${Data.getTaskTotalMinutes(task, tasks)} phút)</span> ${queueProjectTag}
-        <div class="actions">
-          <button type="button" class="btn btn-small btn-done" data-id="${task.id}">Done</button>
-          <button type="button" class="btn btn-small btn-edit" data-id="${task.id}">Sửa</button>
-          <button type="button" class="btn btn-small btn-cancel" data-id="${task.id}">Hủy</button>
+        <div class="actions queue-item-actions">
+          <button type="button" class="queue-btn queue-btn-done" data-id="${task.id}" title="Done" aria-label="Đánh dấu xong">✓</button>
+          <button type="button" class="queue-btn queue-btn-edit" data-id="${task.id}" title="Sửa" aria-label="Sửa">✎</button>
+          <button type="button" class="queue-btn queue-btn-cancel" data-id="${task.id}" title="Hủy" aria-label="Hủy">⊘</button>
         </div>
       `;
-      div.querySelector('.btn-done').addEventListener('click', () => App.markTaskDone(task.id));
-      div.querySelector('.btn-edit').addEventListener('click', () => App.openTaskModal({ editId: task.id }));
-      div.querySelector('.btn-cancel').addEventListener('click', () => App.markTaskCancelled(task.id));
+      div.querySelector('.queue-btn-done').addEventListener('click', (e) => { e.stopPropagation(); App.markTaskDone(task.id); });
+      div.querySelector('.queue-btn-edit').addEventListener('click', (e) => { e.stopPropagation(); App.openTaskModal({ editId: task.id }); });
+      div.querySelector('.queue-btn-cancel').addEventListener('click', (e) => { e.stopPropagation(); App.markTaskCancelled(task.id); });
       var queueElParent = queueEl.parentElement;
       var isTodayQueue = queueElParent && queueElParent.id === 'today-queue';
       if (isTodayQueue) {
         div.classList.add('queue-item-clickable');
         div.style.cursor = 'pointer';
         div.addEventListener('click', function(e) {
-          if (!e.target.closest('.actions')) App.openTaskModal({ editId: task.id });
+          if (!e.target.closest('.queue-item-actions')) App.openTaskModal({ editId: task.id });
         });
       }
       queueEl.appendChild(div);
@@ -882,6 +1103,7 @@ const App = {
     Calendar.render();
     Dashboard.render();
     App.renderDayTimeline();
+    App.renderTodayPanel();
     Stats.render();
     KPI.render();
   },

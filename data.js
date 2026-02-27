@@ -11,6 +11,7 @@ const STORAGE_KPI = 'todo_kpi';
 const STORAGE_REWARDS = 'todo_rewards';
 const STORAGE_HISTORY = 'todo_history'; // for stats: done/late/cancelled
 const STORAGE_PROJECTS = 'todo_projects';
+const STORAGE_RECURRING = 'todo_recurring';
 
 /** Bảng màu tự động cho project (khi không chọn màu) - tăng số lượng dải màu */
 const PROJECT_COLORS = [
@@ -107,7 +108,7 @@ function getTaskCompletionByTime(task, allTasks) {
 
 const Data = {
   _source: 'local',
-  _cache: { tasks: [], schedule: [], kpi: null, rewards: null, history: [], projects: [] },
+  _cache: { tasks: [], schedule: [], kpi: null, rewards: null, history: [], projects: [], recurring: [] },
   _cloudPersist: null,
 
   getCloudCache() {
@@ -119,6 +120,7 @@ const Data = {
       rewards: this._cache.rewards ? { ...this._cache.rewards, history: (this._cache.rewards.history || []).slice() } : { points: 0, history: [] },
       history: (this._cache.history || []).slice(),
       projects: (this._cache.projects || []).slice(),
+      recurring: (this._cache.recurring || []).slice(),
     };
   },
   useCloudData(cache) {
@@ -130,6 +132,7 @@ const Data = {
         rewards: cache.rewards && typeof cache.rewards === 'object' ? cache.rewards : { points: 0, history: [] },
         history: Array.isArray(cache.history) ? cache.history : [],
         projects: Array.isArray(cache.projects) ? cache.projects : [],
+        recurring: Array.isArray(cache.recurring) ? cache.recurring : [],
       };
     }
     this._source = 'cloud';
@@ -406,6 +409,210 @@ const Data = {
     const h = Data.getHistory();
     h.push(entry);
     Data.setHistory(h);
+  },
+
+  getRecurringTemplates() {
+    if (this._source === 'cloud') return this._cache.recurring || [];
+    try {
+      const raw = localStorage.getItem(STORAGE_RECURRING);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  setRecurringTemplates(templates) {
+    if (this._source === 'cloud') {
+      this._cache.recurring = templates;
+      this._persist();
+      return;
+    }
+    localStorage.setItem(STORAGE_RECURRING, JSON.stringify(templates));
+  },
+
+  getRecurringTemplate(id) {
+    return (Data.getRecurringTemplates() || []).find(t => t.id === id);
+  },
+
+  addRecurringTemplate(template) {
+    const list = Data.getRecurringTemplates().slice();
+    const t = {
+      id: template.id || uid(),
+      name: (template.name || '').trim() || 'Task định kỳ',
+      estimatedMinutes: Math.max(1, parseInt(template.estimatedMinutes, 10) || 30),
+      projectId: template.projectId || null,
+      notes: Array.isArray(template.notes) ? template.notes : (template.notes ? [template.notes] : []),
+      recurrence: template.recurrence && template.recurrence.type
+        ? { type: template.recurrence.type, dayOfWeek: template.recurrence.dayOfWeek }
+        : { type: 'daily' },
+      deadlineHour: template.deadlineHour != null ? Math.max(0, Math.min(23, parseInt(template.deadlineHour, 10) || 23)) : 23,
+      deadlineMinute: template.deadlineMinute != null ? Math.max(0, Math.min(59, parseInt(template.deadlineMinute, 10) || 59)) : 59,
+      subtasks: Array.isArray(template.subtasks) ? template.subtasks.map(s => ({
+        name: (s.name || '').trim() || 'Subtask',
+        estimatedMinutes: Math.max(1, parseInt(s.estimatedMinutes, 10) || 15),
+      })) : [],
+      lastCreatedForPeriod: template.lastCreatedForPeriod || '',
+    };
+    list.push(t);
+    Data.setRecurringTemplates(list);
+    return t;
+  },
+
+  updateRecurringTemplate(id, updates) {
+    const list = Data.getRecurringTemplates().slice();
+    const i = list.findIndex(t => t.id === id);
+    if (i === -1) return null;
+    if (updates.name !== undefined) list[i].name = (updates.name || '').trim() || list[i].name;
+    if (updates.estimatedMinutes !== undefined) list[i].estimatedMinutes = Math.max(1, parseInt(updates.estimatedMinutes, 10) || 30);
+    if (updates.projectId !== undefined) list[i].projectId = updates.projectId || null;
+    if (updates.notes !== undefined) list[i].notes = Array.isArray(updates.notes) ? updates.notes : (updates.notes ? [updates.notes] : []);
+    if (updates.recurrence !== undefined) list[i].recurrence = updates.recurrence.type
+      ? { type: updates.recurrence.type, dayOfWeek: updates.recurrence.dayOfWeek }
+      : list[i].recurrence;
+    if (updates.deadlineHour !== undefined) list[i].deadlineHour = Math.max(0, Math.min(23, parseInt(updates.deadlineHour, 10) || 23));
+    if (updates.deadlineMinute !== undefined) list[i].deadlineMinute = Math.max(0, Math.min(59, parseInt(updates.deadlineMinute, 10) || 59));
+    if (updates.subtasks !== undefined) list[i].subtasks = Array.isArray(updates.subtasks)
+      ? updates.subtasks.map(s => ({ name: (s.name || '').trim() || 'Subtask', estimatedMinutes: Math.max(1, parseInt(s.estimatedMinutes, 10) || 15) }))
+      : list[i].subtasks;
+    if (updates.lastCreatedForPeriod !== undefined) list[i].lastCreatedForPeriod = updates.lastCreatedForPeriod;
+    Data.setRecurringTemplates(list);
+    return list[i];
+  },
+
+  deleteRecurringTemplate(id) {
+    const list = (Data.getRecurringTemplates() || []).filter(t => t.id !== id);
+    Data.setRecurringTemplates(list);
+    return list;
+  },
+
+  /**
+   * Kiểm tra và tạo task từ template định kỳ cho ngày forDate (mặc định hôm nay).
+   * Chỉ tạo 1 lần mỗi chu kỳ (đánh dấu lastCreatedForPeriod).
+   */
+  processRecurringTemplates(forDate) {
+    const date = forDate ? new Date(forDate) : new Date();
+    const y = date.getFullYear();
+    const m = date.getMonth();
+    const d = date.getDate();
+    const dayOfWeek = date.getDay();
+    const dateStr = d + '/' + (m + 1) + '/' + y;
+    const dateISO = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+
+    function getPeriodKey(tpl) {
+      return dateISO;
+    }
+
+    function shouldRunToday(tpl) {
+      const r = tpl.recurrence || {};
+      if (r.type === 'weekly' && r.dayOfWeek !== undefined) return dayOfWeek === r.dayOfWeek;
+      return true;
+    }
+
+    const templates = Data.getRecurringTemplates();
+    const toRun = templates.filter(t => shouldRunToday(t)).map(t => {
+      const periodKey = getPeriodKey(t);
+      if ((t.lastCreatedForPeriod || '') >= periodKey) return null;
+      return { template: t, periodKey };
+    }).filter(Boolean);
+
+    const existingTasks = Data.getTasks();
+    const createdNamesThisBatch = {};
+
+    function countExistingAndBatch(baseName) {
+      const existing = existingTasks.filter(t => t.name === baseName || t.name.startsWith(baseName + ' (')).length;
+      const inBatch = createdNamesThisBatch[baseName] || 0;
+      return { existing, inBatch };
+    }
+
+    function nextDisplayName(baseName) {
+      const { existing, inBatch } = countExistingAndBatch(baseName);
+      const nextIndex = existing + inBatch + 1;
+      createdNamesThisBatch[baseName] = (createdNamesThisBatch[baseName] || 0) + 1;
+      return nextIndex === 1 ? baseName : baseName + ' (' + nextIndex + ')';
+    }
+
+    const tasks = Data.getTasks().slice();
+    let templatesUpdated = Data.getRecurringTemplates().slice();
+
+    toRun.forEach(({ template: tpl, periodKey }) => {
+      const h = (tpl.deadlineHour != null ? Math.max(0, Math.min(23, tpl.deadlineHour)) : 23);
+      const min = (tpl.deadlineMinute != null ? Math.max(0, Math.min(59, tpl.deadlineMinute)) : 59);
+      const deadlineToday = new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, min, 0, 0).toISOString();
+      const baseName = (tpl.name || 'Task').trim() + ' ' + dateStr;
+      const displayName = nextDisplayName(baseName);
+      const notes = Array.isArray(tpl.notes) ? tpl.notes : (tpl.notes ? [tpl.notes] : []);
+      const subtasks = tpl.subtasks || [];
+
+      if (subtasks.length > 0) {
+        const parentId = uid();
+        const childIds = [];
+        const parentTask = {
+          id: parentId,
+          name: displayName,
+          estimatedMinutes: tpl.estimatedMinutes || 30,
+          deadline: deadlineToday,
+          singleDay: true,
+          important: false,
+          urgent: false,
+          notes: notes,
+          parentId: null,
+          childIds: [],
+          projectId: tpl.projectId || null,
+          status: 'pending',
+          completedAt: null,
+          completedMinutes: 0,
+          createdAt: new Date().toISOString(),
+        };
+        tasks.push(parentTask);
+        subtasks.forEach(sub => {
+          const cid = uid();
+          childIds.push(cid);
+          tasks.push({
+            id: cid,
+            name: (sub.name || 'Subtask').trim(),
+            estimatedMinutes: sub.estimatedMinutes || 15,
+            deadline: deadlineToday,
+            singleDay: true,
+            important: false,
+            urgent: false,
+            notes: [],
+            parentId: parentId,
+            childIds: [],
+            projectId: tpl.projectId || null,
+            status: 'pending',
+            completedAt: null,
+            completedMinutes: 0,
+            createdAt: new Date().toISOString(),
+          });
+        });
+        const parentIdx = tasks.findIndex(x => x.id === parentId);
+        if (parentIdx !== -1) tasks[parentIdx].childIds = childIds;
+      } else {
+        tasks.push({
+          id: uid(),
+          name: displayName,
+          estimatedMinutes: tpl.estimatedMinutes || 30,
+          deadline: deadlineToday,
+          singleDay: true,
+          important: false,
+          urgent: false,
+          notes: notes,
+          parentId: null,
+          childIds: [],
+          projectId: tpl.projectId || null,
+          status: 'pending',
+          completedAt: null,
+          completedMinutes: 0,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      const tplIdx = templatesUpdated.findIndex(x => x.id === tpl.id);
+      if (tplIdx !== -1) templatesUpdated[tplIdx] = { ...templatesUpdated[tplIdx], lastCreatedForPeriod: periodKey };
+    });
+
+    if (tasks.length !== existingTasks.length) Data.setTasks(tasks);
+    Data.setRecurringTemplates(templatesUpdated);
   },
 
   getTaskTotalMinutes,

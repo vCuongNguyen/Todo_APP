@@ -72,6 +72,7 @@ const Auth = {
           rewards: d.rewards && typeof d.rewards === 'object' ? d.rewards : { points: 0, history: [] },
           history: Array.isArray(d.history) ? d.history : [],
           projects: Array.isArray(d.projects) ? d.projects : [],
+          recurring: Array.isArray(d.recurring) ? d.recurring : [],
         };
       } else {
         Auth._cloudCache = {
@@ -81,6 +82,7 @@ const Auth = {
           rewards: { points: 0, history: [] },
           history: [],
           projects: [],
+          recurring: [],
         };
       }
     } catch (e) {
@@ -91,6 +93,8 @@ const Auth = {
         kpi: { type: 'done_ratio', target: 80, rewardCustom: '' },
         rewards: { points: 0, history: [] },
         history: [],
+        projects: [],
+        recurring: [],
       };
     }
   },
@@ -113,6 +117,7 @@ const Auth = {
           rewards: cache.rewards || { points: 0, history: [] },
           history: cache.history || [],
           projects: cache.projects || [],
+          recurring: cache.recurring || [],
           updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
       } catch (e) {
